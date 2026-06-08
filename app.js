@@ -1,3 +1,4 @@
+console.info("Syukuran Voucher App v5 loaded - fixed admin /users root rules + permission diagnostics");
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -17,26 +18,92 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBvf9xYTO4jrH_KZ2vaVUWf_Rp4RzjKNAM",
+  apiKey: "AIzaSyBvf9xYTO4jrH_KZ2vaVUWF_Rp4RzjKNAM",
   authDomain: "fremantle-syukuran-95973.firebaseapp.com",
-  databaseURL:
-    "https://fremantle-syukuran-95973-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "fremantle-syukuran-95973",
   storageBucket: "fremantle-syukuran-95973.firebasestorage.app",
   messagingSenderId: "892900409139",
   appId: "1:892900409139:web:46e72f8fc25a80e6c28846",
   measurementId: "G-CL7BRQTQ1N",
+  databaseURL: "https://fremantle-syukuran-95973-default-rtdb.asia-southeast1.firebasedatabase.app"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
-const db = getDatabase(firebaseApp);
+// Penting: database project ini ada di asia-southeast1.
+// Kalau URL tidak ditulis eksplisit, Firebase mencoba URL default Amerika dan login terasa lama/stuck.
+const db = getDatabase(firebaseApp, firebaseConfig.databaseURL);
 
 let secondaryApp = null;
 let secondaryAuth = null;
 
 const EMAIL_DOMAIN = "fremantle-syukuran.local";
 const ADMIN_EMAIL = `admin@${EMAIL_DOMAIN}`;
+const CONNECT_TIMEOUT_MS = 12000;
+
+function withTimeout(promise, message, timeoutMs = CONNECT_TIMEOUT_MS) {
+  let timeoutId;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    window.clearTimeout(timeoutId);
+  });
+}
+
+async function readDb(path, label) {
+  try {
+    return await withTimeout(
+      get(ref(db, path)),
+      `Koneksi ke Firebase terlalu lama saat membaca ${label}. Path: /${path}. Cek koneksi internet, URL Realtime Database, dan Firebase Database Rules.`
+    );
+  } catch (error) {
+    error.dbPath = `/${path}`;
+    error.dbAction = `membaca ${label}`;
+    throw error;
+  }
+}
+
+async function writeDb(path, value, label) {
+  try {
+    return await withTimeout(
+      set(ref(db, path), value),
+      `Koneksi ke Firebase terlalu lama saat menyimpan ${label}. Path: /${path}. Cek koneksi internet, URL Realtime Database, dan Firebase Database Rules.`
+    );
+  } catch (error) {
+    error.dbPath = `/${path}`;
+    error.dbAction = `menyimpan ${label}`;
+    throw error;
+  }
+}
+
+function friendlyFirebaseError(error) {
+  const code = error?.code || "";
+
+  if (code.includes("permission-denied") || String(error?.message || "").toLowerCase().includes("permission denied")) {
+    const pathInfo = error?.dbPath ? ` Path yang ditolak: ${error.dbPath}.` : "";
+    const actionInfo = error?.dbAction ? ` Saat: ${error.dbAction}.` : "";
+    return `Firebase Realtime Database Rules masih menolak akses akun ini.${pathInfo}${actionInfo} Ini bukan masalah password. Untuk admin, rules harus mengizinkan baca /users, bukan hanya /users/{uid}. Paste rules versi v5 dari file firebase-rules-PASTE-IN-FIREBASE.json lalu klik Publish. Pastikan rules dipasang di Realtime Database instance asia-southeast1, bukan Firestore.`;
+  }
+
+  if (code.includes("network-request-failed") || code.includes("unavailable")) {
+    return "Koneksi internet atau server Firebase sedang bermasalah. Coba refresh halaman.";
+  }
+
+  if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) {
+    return "Username atau password tidak sesuai.";
+  }
+
+  if (code.includes("too-many-requests")) {
+    return "Terlalu banyak percobaan login. Tunggu sebentar lalu coba lagi.";
+  }
+
+  return error?.message || "Terjadi kesalahan yang belum diketahui.";
+}
 
 const EVENT = {
   name: "Syukuran Idol dan FAM 100",
@@ -147,7 +214,13 @@ const PARTICIPANTS = [
 ];
 
 function usernameToEmail(username) {
-  return `${String(username).trim().toLowerCase()}@${EMAIL_DOMAIN}`;
+  const value = String(username).trim().toLowerCase();
+
+  if (value.includes("@")) {
+    return value;
+  }
+
+  return `${value}@${EMAIL_DOMAIN}`;
 }
 
 function generatePassword(index) {
@@ -287,15 +360,14 @@ function render() {
 }
 
 async function ensureAdminProfile(user) {
-  const userRef = ref(db, `users/${user.uid}`);
-  const snapshot = await get(userRef);
+  const snapshot = await readDb(`users/${user.uid}`, "profil akun");
 
   if (snapshot.exists()) {
     return snapshot.val();
   }
 
   if (user.email !== ADMIN_EMAIL) {
-    throw new Error("Akun belum terdaftar sebagai peserta acara.");
+    throw new Error("Akun belum terdaftar sebagai peserta acara. Data profil user belum ada di Realtime Database.");
   }
 
   const adminProfile = {
@@ -308,61 +380,93 @@ async function ensureAdminProfile(user) {
     createdAt: Date.now(),
   };
 
-  await set(userRef, adminProfile);
+  await writeDb(`users/${user.uid}`, adminProfile, "profil admin");
   return adminProfile;
 }
 
 async function loadInitialData(profile) {
-  const reads = [
-    get(ref(db, "carts")),
-    get(ref(db, "claims")),
-  ];
+  const cartsSnapshot = await readDb("carts", "data booth");
+
+  state.carts = cartsSnapshot.val() || {};
 
   if (profile.role === "admin") {
-    reads.push(get(ref(db, "users")));
+    const [claimsSnapshot, usersSnapshot] = await Promise.all([
+      readDb("claims", "data pengambilan"),
+      readDb("users", "data peserta"),
+    ]);
+
+    state.claims = claimsSnapshot.val() || {};
+    state.users = usersSnapshot.val() || {};
+    return;
   }
 
-  const snapshots = await Promise.all(reads);
+  const ownClaimsSnapshot = await readDb(
+    `claims/${state.authUser.uid}`,
+    "status voucher akun ini"
+  );
 
-  state.carts = snapshots[0].val() || {};
-  state.claims = snapshots[1].val() || {};
+  state.claims = {
+    [state.authUser.uid]: ownClaimsSnapshot.val() || {},
+  };
 
-  if (profile.role === "admin") {
-    state.users = snapshots[2].val() || {};
-  } else {
-    state.users = {
-      [state.authUser.uid]: profile,
-    };
-  }
+  state.users = {
+    [state.authUser.uid]: profile,
+  };
 }
-
 function subscribeRealtimeData(profile) {
   detachRealtimeListeners();
 
   state.unsubs.push(
-    onValue(ref(db, "carts"), (snapshot) => {
-      state.carts = snapshot.val() || {};
-      if (state.currentUser) render();
-    })
-  );
-
-  state.unsubs.push(
-    onValue(ref(db, "claims"), (snapshot) => {
-      state.claims = snapshot.val() || {};
-      if (state.currentUser) render();
-    })
+    onValue(
+      ref(db, "carts"),
+      (snapshot) => {
+        state.carts = snapshot.val() || {};
+        if (state.currentUser) render();
+      },
+      (error) => console.error("Realtime carts error:", error)
+    )
   );
 
   if (profile.role === "admin") {
     state.unsubs.push(
-      onValue(ref(db, "users"), (snapshot) => {
-        state.users = snapshot.val() || {};
-        if (state.currentUser?.role === "admin") render();
-      })
+      onValue(
+        ref(db, "claims"),
+        (snapshot) => {
+          state.claims = snapshot.val() || {};
+          if (state.currentUser?.role === "admin") render();
+        },
+        (error) => console.error("Realtime claims error:", error)
+      )
     );
-  }
-}
 
+    state.unsubs.push(
+      onValue(
+        ref(db, "users"),
+        (snapshot) => {
+          state.users = snapshot.val() || {};
+          if (state.currentUser?.role === "admin") render();
+        },
+        (error) => console.error("Realtime users error:", error)
+      )
+    );
+
+    return;
+  }
+
+  state.unsubs.push(
+    onValue(
+      ref(db, `claims/${state.authUser.uid}`),
+      (snapshot) => {
+        state.claims = {
+          [state.authUser.uid]: snapshot.val() || {},
+        };
+
+        if (state.currentUser?.role !== "admin") render();
+      },
+      (error) => console.error("Realtime own claims error:", error)
+    )
+  );
+}
 function renderLogin() {
   app.innerHTML = `
     <main class="login-wrap">
@@ -422,15 +526,18 @@ function renderLogin() {
     try {
       await signInWithEmailAndPassword(auth, usernameToEmail(username), password);
     } catch (error) {
+    console.error("Login error:", error);
+
       messageEl.innerHTML = `
         <div class="notice danger">
-          Username atau password tidak sesuai.
+          ${friendlyFirebaseError(error)}<br/>
+          <small>${error.code || error.message}</small>
         </div>
-      `;
+     `;
 
       loginBtn.disabled = false;
       loginBtn.textContent = "Masuk";
-    }
+  }
   });
 }
 
@@ -1389,7 +1496,7 @@ async function setupDatabase() {
       cartsObject[cart.id] = cart;
     });
 
-    await set(ref(db, "carts"), cartsObject);
+    await writeDb("carts", cartsObject, "data booth");
 
     const currentAdmin = {
       uid: state.authUser.uid,
@@ -1401,7 +1508,7 @@ async function setupDatabase() {
       createdAt: Date.now(),
     };
 
-    await set(ref(db, `users/${state.authUser.uid}`), currentAdmin);
+    await writeDb(`users/${state.authUser.uid}`, currentAdmin, "profil admin");
 
     for (let i = 0; i < PARTICIPANTS.length; i++) {
       const participant = PARTICIPANTS[i];
@@ -1417,7 +1524,7 @@ async function setupDatabase() {
 
       const uid = await createOrGetAuthUser(email, password);
 
-      await set(ref(db, `users/${uid}`), {
+      await writeDb(`users/${uid}`, {
         uid,
         participantCode: `P${number}`,
         name: participant.name,
@@ -1426,14 +1533,14 @@ async function setupDatabase() {
         password,
         role: "participant",
         createdAt: Date.now(),
-      });
+      }, `profil peserta ${participant.username}`);
     }
 
-    await set(ref(db, "meta/setup"), {
+    await writeDb("meta/setup", {
       completed: true,
       completedAt: Date.now(),
       completedBy: state.authUser.uid,
-    });
+    }, "status setup");
 
     state.setupMessage = "Setup data selesai. Peserta, booth, dan voucher sudah aktif.";
     renderAdmin();
@@ -1515,7 +1622,7 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  renderLoading("Menghubungkan akun...");
+  renderLoading("Menghubungkan akun... Jika halaman ini terlalu lama, cek koneksi internet dan Firebase Rules.");
 
   try {
     state.authUser = user;
@@ -1539,9 +1646,12 @@ onAuthStateChanged(auth, async (user) => {
 
     await signOut(auth).catch(() => {});
 
+    const errorText = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+    const isPermissionDenied = errorText.includes("permission-denied") || errorText.includes("permission denied");
+
     renderError(
-      "Akun belum aktif",
-      error.message || "Silakan hubungi panitia untuk aktivasi akun."
+      isPermissionDenied ? "Rules Firebase belum benar" : "Akun belum aktif",
+      friendlyFirebaseError(error) || "Silakan hubungi panitia untuk aktivasi akun."
     );
   }
 });
