@@ -10,10 +10,10 @@ const EVENT = {
 };
 
 const STORAGE_KEYS = {
-  USERS: "syukuran_idol_fam_users_v2",
-  CARTS: "syukuran_idol_fam_carts_v2",
-  CLAIMS: "syukuran_idol_fam_claims_v2",
-  SESSION: "syukuran_idol_fam_session_v2",
+  USERS: "syukuran_idol_fam_users_v3",
+  CARTS: "syukuran_idol_fam_carts_v3",
+  CLAIMS: "syukuran_idol_fam_claims_v3",
+  SESSION: "syukuran_idol_fam_session_v3",
 };
 
 const app = document.getElementById("app");
@@ -22,6 +22,8 @@ const state = {
   currentUser: null,
   scanner: null,
   scanning: false,
+  participantTab: "home",
+  adminTab: "dashboard",
 };
 
 const DEFAULT_CARTS = [
@@ -134,6 +136,29 @@ function stopScannerIfNeeded() {
     state.scanner.stop().catch(() => {});
     state.scanning = false;
   }
+}
+
+function formatTime(dateString) {
+  return new Date(dateString).toLocaleString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getParticipantStats(user) {
+  const carts = getCarts();
+  const claims = getClaims();
+  const userClaims = claims.filter((claim) => claim.participantId === user.id);
+
+  return {
+    carts,
+    claims,
+    userClaims,
+    claimedCount: userClaims.length,
+    remainingCount: carts.length - userClaims.length,
+  };
 }
 
 function render() {
@@ -262,30 +287,236 @@ function attachLogout() {
   });
 }
 
+function renderTabs(type) {
+  const tabs =
+    type === "participant"
+      ? [
+          { id: "home", label: "Beranda", icon: "⌂" },
+          { id: "scan", label: "Scan", icon: "□" },
+          { id: "status", label: "Menu", icon: "✓" },
+        ]
+      : [
+          { id: "dashboard", label: "Rekap", icon: "⌂" },
+          { id: "qr", label: "QR", icon: "□" },
+          { id: "vouchers", label: "Voucher", icon: "◎" },
+          { id: "history", label: "Riwayat", icon: "≡" },
+        ];
+
+  const activeTab =
+    type === "participant" ? state.participantTab : state.adminTab;
+
+  return `
+    <nav class="app-tabs no-print" data-tab-type="${type}">
+      ${tabs
+        .map(
+          (tab) => `
+            <button class="app-tab ${activeTab === tab.id ? "active" : ""}" data-tab="${tab.id}">
+              <span class="tab-icon">${tab.icon}</span>
+              <span>${tab.label}</span>
+            </button>
+          `
+        )
+        .join("")}
+    </nav>
+  `;
+}
+
+function attachTabs(type) {
+  document.querySelectorAll(".app-tab").forEach((button) => {
+    button.addEventListener("click", () => {
+      const tab = button.dataset.tab;
+
+      if (type === "participant") {
+        if (state.participantTab === "scan" && tab !== "scan") {
+          stopScannerIfNeeded();
+        }
+
+        state.participantTab = tab;
+        renderParticipant();
+      } else {
+        state.adminTab = tab;
+        renderAdmin();
+      }
+    });
+  });
+}
+
 function renderParticipant() {
-  const carts = getCarts();
-  const claims = getClaims();
+  const content =
+    state.participantTab === "scan"
+      ? renderParticipantScan()
+      : state.participantTab === "status"
+        ? renderParticipantStatus()
+        : renderParticipantHome();
 
-  const userClaims = claims.filter(
-    (claim) => claim.participantId === state.currentUser.id
-  );
+  app.innerHTML = `
+    <div class="app-shell app-mode">
+      ${renderTopbar()}
+      ${renderTabs("participant")}
 
-  const claimedCount = userClaims.length;
-  const remainingCount = carts.length - claimedCount;
+      <main class="app-page">
+        ${content}
+      </main>
+    </div>
+  `;
+
+  attachLogout();
+  attachTabs("participant");
+  attachParticipantActions();
+}
+
+function renderParticipantHome() {
+  const { carts, userClaims, claimedCount, remainingCount } =
+    getParticipantStats(state.currentUser);
+
+  const progressPercent = Math.round((claimedCount / carts.length) * 100);
+
+  const recentClaims = userClaims
+    .slice()
+    .reverse()
+    .slice(0, 3)
+    .map(
+      (claim) => `
+        <div class="mini-row">
+          <div>
+            <b>${claim.menu}</b>
+            <small>${claim.cartName} · ${formatTime(claim.claimedAt)}</small>
+          </div>
+          <span class="status done">Done</span>
+        </div>
+      `
+    )
+    .join("");
+
+  return `
+    <section class="card app-card home-screen">
+      <div class="mobile-hero-logos">
+        ${logoStrip()}
+      </div>
+
+      <div class="event-pill">Peserta Voucher</div>
+
+      <h1 class="app-title">
+        Halo, <span class="gold-text">${state.currentUser.name}</span>
+      </h1>
+
+      <p class="app-desc">
+        Gunakan menu bawah untuk scan QR booth dan cek status menu kamu.
+      </p>
+
+      <div class="progress-card">
+        <div class="progress-top">
+          <div>
+            <strong>${claimedCount} dari ${carts.length} menu</strong>
+            <small>Sudah kamu ambil</small>
+          </div>
+          <b>${progressPercent}%</b>
+        </div>
+
+        <div class="progress-track">
+          <div class="progress-fill" style="width: ${progressPercent}%"></div>
+        </div>
+      </div>
+
+      <div class="quick-actions">
+        <button class="quick-action primary" id="goScanBtn">
+          <span>Scan QR</span>
+          <b>Buka Kamera</b>
+        </button>
+
+        <button class="quick-action" id="goStatusBtn">
+          <span>Status Menu</span>
+          <b>${remainingCount} belum diambil</b>
+        </button>
+      </div>
+    </section>
+
+    <section class="card app-card compact-card">
+      <div class="section-heading">
+        <div>
+          <h2>Aktivitas Terakhir</h2>
+          <p>Menu yang baru kamu ambil.</p>
+        </div>
+      </div>
+
+      <div class="mini-list">
+        ${
+          recentClaims ||
+          `
+            <div class="empty-state">
+              Belum ada menu yang diambil. Tekan <b>Scan QR</b> untuk mulai.
+            </div>
+          `
+        }
+      </div>
+    </section>
+  `;
+}
+
+function renderParticipantScan() {
+  return `
+    <section class="card app-card scan-screen">
+      <div class="screen-head">
+        <div>
+          <div class="event-pill">Scan Booth</div>
+          <h1 class="app-title">Arahkan kamera ke QR booth.</h1>
+          <p class="app-desc">
+            Setelah QR terbaca, sistem langsung validasi voucher kamu.
+          </p>
+        </div>
+      </div>
+
+      <div class="scanner-box app-scanner">
+        <div id="qr-reader">
+          <div class="scanner-placeholder">
+            Kamera belum aktif.
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row scan-actions">
+        <button class="btn btn-primary" id="startScanBtn">Buka Kamera</button>
+        <button class="btn btn-outline" id="stopScanBtn">Tutup</button>
+      </div>
+
+      <div id="scanMessage"></div>
+
+      <details class="manual-details">
+        <summary>Input manual untuk simulasi</summary>
+
+        <div class="manual-box">
+          <div class="field">
+            <label for="manualQr">Kode QR</label>
+            <input id="manualQr" placeholder="contoh: SYUKURAN_CART:G01" />
+          </div>
+          <button class="btn btn-gold" id="manualSubmitBtn">Validasi Manual</button>
+        </div>
+      </details>
+    </section>
+  `;
+}
+
+function renderParticipantStatus() {
+  const { carts, userClaims, claimedCount, remainingCount } =
+    getParticipantStats(state.currentUser);
 
   const menuHtml = carts
     .map((cart) => {
       const claim = userClaims.find((item) => item.cartId === cart.id);
 
       const status = claim
-        ? `<span class="status done">Sudah diambil</span>`
-        : `<span class="status pending">Belum diambil</span>`;
+        ? `<span class="status done">Sudah</span>`
+        : `<span class="status pending">Belum</span>`;
+
+      const meta = claim
+        ? `${cart.id} · ${cart.name} · ${formatTime(claim.claimedAt)}`
+        : `${cart.id} · ${cart.name}`;
 
       return `
-        <div class="menu-item">
+        <div class="menu-item app-menu-item">
           <div>
             <div class="menu-title">${cart.menu}</div>
-            <div class="menu-meta">${cart.id} · ${cart.name}</div>
+            <div class="menu-meta">${meta}</div>
           </div>
           ${status}
         </div>
@@ -293,107 +524,61 @@ function renderParticipant() {
     })
     .join("");
 
-  app.innerHTML = `
-    <div class="app-shell">
-      ${renderTopbar()}
-
-      <section class="card hero-card no-print">
-        <div class="hero-content">
-          <div>
-            <div class="event-pill">Peserta Voucher</div>
-            <h1>
-              Scan QR booth dan ambil menu <span class="gold-text">syukuran</span>.
-            </h1>
-            <p>
-              Halo <b>${state.currentUser.name}</b>. Setiap peserta hanya bisa mengambil
-              <b>1 kali di setiap booth</b>. Jika kamu scan QR booth yang sama lagi,
-              sistem akan menolak otomatis.
-            </p>
-
-            <div class="stats">
-              <div class="stat">
-                <div class="stat-value">${carts.length}</div>
-                <div class="stat-label">Total Booth</div>
-              </div>
-
-              <div class="stat">
-                <div class="stat-value">${claimedCount}</div>
-                <div class="stat-label">Sudah Diambil</div>
-              </div>
-
-              <div class="stat">
-                <div class="stat-value">${remainingCount}</div>
-                <div class="stat-label">Belum Diambil</div>
-              </div>
-
-              <div class="stat">
-                <div class="stat-value">${state.currentUser.id}</div>
-                <div class="stat-label">ID Peserta</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="hero-logos">
-            ${logoStrip()}
-          </div>
+  return `
+    <section class="card app-card">
+      <div class="screen-head">
+        <div>
+          <div class="event-pill">Status Menu</div>
+          <h1 class="app-title">Menu kamu</h1>
+          <p class="app-desc">
+            ${claimedCount} sudah diambil, ${remainingCount} belum diambil.
+          </p>
         </div>
-      </section>
-
-      <div class="grid grid-2 no-print" style="margin-top: 18px;">
-        <section class="card">
-          <h2>Scan QR Booth</h2>
-          <p>
-            Tekan tombol <b>Buka Kamera</b>, lalu arahkan kamera ke QR yang ditempel
-            di booth makanan.
-          </p>
-
-          <div class="scanner-box">
-            <div id="qr-reader">
-              <div style="padding: 24px; text-align:center;">
-                Kamera belum aktif.
-              </div>
-            </div>
-          </div>
-
-          <div class="btn-row" style="margin-top: 14px;">
-            <button class="btn btn-primary" id="startScanBtn">Buka Kamera</button>
-            <button class="btn btn-outline" id="stopScanBtn">Tutup Kamera</button>
-          </div>
-
-          <div class="manual-box">
-            <div class="field">
-              <label for="manualQr">Input manual untuk simulasi</label>
-              <input id="manualQr" placeholder="contoh: SYUKURAN_CART:G01" />
-            </div>
-            <button class="btn btn-gold" id="manualSubmitBtn">Validasi Manual</button>
-          </div>
-
-          <div id="scanMessage"></div>
-        </section>
-
-        <section class="card">
-          <h2>Status Menu Kamu</h2>
-          <p>
-            Daftar ini akan berubah setelah kamu berhasil scan QR booth.
-          </p>
-
-          <div class="menu-list">
-            ${menuHtml}
-          </div>
-        </section>
       </div>
-    </div>
+
+      <div class="menu-list app-list">
+        ${menuHtml}
+      </div>
+    </section>
   `;
+}
 
-  attachLogout();
+function attachParticipantActions() {
+  const goScanBtn = document.getElementById("goScanBtn");
+  const goStatusBtn = document.getElementById("goStatusBtn");
 
-  document.getElementById("startScanBtn").addEventListener("click", startScanner);
-  document.getElementById("stopScanBtn").addEventListener("click", stopScannerIfNeeded);
+  if (goScanBtn) {
+    goScanBtn.addEventListener("click", () => {
+      state.participantTab = "scan";
+      renderParticipant();
+    });
+  }
 
-  document.getElementById("manualSubmitBtn").addEventListener("click", () => {
-    const value = document.getElementById("manualQr").value.trim();
-    handleQrResult(value);
-  });
+  if (goStatusBtn) {
+    goStatusBtn.addEventListener("click", () => {
+      state.participantTab = "status";
+      renderParticipant();
+    });
+  }
+
+  const startScanBtn = document.getElementById("startScanBtn");
+  const stopScanBtn = document.getElementById("stopScanBtn");
+  const manualSubmitBtn = document.getElementById("manualSubmitBtn");
+
+  if (startScanBtn) {
+    startScanBtn.addEventListener("click", startScanner);
+  }
+
+  if (stopScanBtn) {
+    stopScanBtn.addEventListener("click", stopScannerIfNeeded);
+  }
+
+  if (manualSubmitBtn) {
+    manualSubmitBtn.addEventListener("click", () => {
+      const value = document.getElementById("manualQr").value.trim();
+      handleQrResult(value);
+    });
+  }
 }
 
 function setScanMessage(type, title, text) {
@@ -477,7 +662,7 @@ function normalizeCartCode(rawValue) {
       if (paramValue) return paramValue.trim().toUpperCase();
     }
   } catch {
-    // Bukan URL. Lanjut cek sebagai kode biasa.
+    // Bukan URL.
   }
 
   return value.toUpperCase();
@@ -528,6 +713,7 @@ function handleQrResult(decodedText) {
   claims.push(newClaim);
   saveClaims(claims);
 
+  state.participantTab = "scan";
   renderParticipant();
 
   setScanMessage(
@@ -538,13 +724,53 @@ function handleQrResult(decodedText) {
 }
 
 function renderAdmin() {
+  const content =
+    state.adminTab === "qr"
+      ? renderAdminQr()
+      : state.adminTab === "vouchers"
+        ? renderAdminVouchers()
+        : state.adminTab === "history"
+          ? renderAdminHistory()
+          : renderAdminDashboard();
+
+  app.innerHTML = `
+    <div class="app-shell app-mode">
+      ${renderTopbar()}
+      ${renderTabs("admin")}
+
+      <main class="app-page">
+        ${content}
+      </main>
+    </div>
+  `;
+
+  attachLogout();
+  attachTabs("admin");
+  attachAdminActions();
+
+  if (state.adminTab === "qr") {
+    drawQrCodes();
+  }
+}
+
+function getAdminStats() {
   const users = getUsers();
   const participants = users.filter((user) => user.role === "participant");
   const carts = getCarts();
   const claims = getClaims();
 
-  const totalPossibleClaims = participants.length * carts.length;
-  const totalClaims = claims.length;
+  return {
+    participants,
+    carts,
+    claims,
+    totalPossibleClaims: participants.length * carts.length,
+    totalClaims: claims.length,
+  };
+}
+
+function renderAdminDashboard() {
+  const { participants, carts, claims, totalPossibleClaims, totalClaims } =
+    getAdminStats();
 
   const cartStatsHtml = carts
     .map((cart) => {
@@ -552,29 +778,117 @@ function renderAdmin() {
       const remaining = participants.length - count;
 
       return `
-        <tr>
-          <td><b>${cart.id}</b></td>
-          <td>${cart.name}</td>
-          <td>${cart.menu}</td>
-          <td>${count}</td>
-          <td>${remaining}</td>
-        </tr>
+        <div class="admin-stat-row">
+          <div>
+            <b>${cart.menu}</b>
+            <small>${cart.id} · ${cart.name}</small>
+          </div>
+          <div class="admin-numbers">
+            <span>${count}</span>
+            <small>sisa ${remaining}</small>
+          </div>
+        </div>
       `;
     })
     .join("");
 
-  const voucherRows = participants
-    .map((user) => {
+  return `
+    <section class="card app-card home-screen">
+      <div class="mobile-hero-logos">
+        ${logoStrip()}
+      </div>
+
+      <div class="event-pill">Dashboard Admin</div>
+
+      <h1 class="app-title">
+        Rekap <span class="blue-text">pengambilan</span>
+      </h1>
+
+      <p class="app-desc">
+        Pantau jumlah voucher yang sudah dipakai di setiap booth makanan.
+      </p>
+
+      <div class="stats app-stats">
+        <div class="stat">
+          <div class="stat-value">${participants.length}</div>
+          <div class="stat-label">Peserta</div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-value">${carts.length}</div>
+          <div class="stat-label">Booth</div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-value">${totalClaims}</div>
+          <div class="stat-label">Terpakai</div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-value">${totalPossibleClaims}</div>
+          <div class="stat-label">Maksimal</div>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top: 18px;">
+        <button class="btn btn-danger" id="resetClaimsBtn">Reset Pengambilan</button>
+      </div>
+    </section>
+
+    <section class="card app-card compact-card">
+      <div class="section-heading">
+        <div>
+          <h2>Per Booth</h2>
+          <p>Jumlah menu yang sudah diambil.</p>
+        </div>
+      </div>
+
+      <div class="mini-list">
+        ${cartStatsHtml}
+      </div>
+    </section>
+  `;
+}
+
+function renderAdminQr() {
+  const carts = getCarts();
+
+  const qrCards = carts
+    .map((cart) => {
       return `
-        <tr>
-          <td><b>${user.id}</b></td>
-          <td>${user.name}</td>
-          <td><span class="code">${user.username}</span></td>
-          <td><span class="code">${user.password}</span></td>
-        </tr>
+        <div class="qr-card">
+          <div class="qr-holder" id="qr-${cart.id}"></div>
+          <div class="qr-title">${cart.name}</div>
+          <div class="qr-subtitle">${cart.id} · ${cart.menu}</div>
+          <div class="code" style="margin-top: 10px;">SYUKURAN_CART:${cart.id}</div>
+        </div>
       `;
     })
     .join("");
+
+  return `
+    <section class="card app-card">
+      <div class="screen-head">
+        <div>
+          <div class="event-pill">QR Booth</div>
+          <h1 class="app-title">Print QR booth</h1>
+          <p class="app-desc">
+            Tempel QR ini di masing-masing booth makanan.
+          </p>
+        </div>
+
+        <button class="btn btn-primary no-print" id="printBtn">Print</button>
+      </div>
+
+      <div class="qr-grid app-qr-grid">
+        ${qrCards}
+      </div>
+    </section>
+  `;
+}
+
+function renderAdminVouchers() {
+  const { participants } = getAdminStats();
 
   const voucherCards = participants
     .map((user) => {
@@ -594,208 +908,97 @@ function renderAdmin() {
     })
     .join("");
 
+  return `
+    <section class="card app-card">
+      <div class="screen-head">
+        <div>
+          <div class="event-pill">Voucher Peserta</div>
+          <h1 class="app-title">Cetak voucher</h1>
+          <p class="app-desc">
+            Bagikan username dan password ini ke peserta.
+          </p>
+        </div>
+
+        <button class="btn btn-primary no-print" id="printBtn">Print</button>
+      </div>
+
+      <div class="voucher-card-grid app-voucher-grid">
+        ${voucherCards}
+      </div>
+    </section>
+  `;
+}
+
+function renderAdminHistory() {
+  const { claims } = getAdminStats();
+
   const claimRows =
     claims.length === 0
       ? `
-        <tr>
-          <td colspan="5">Belum ada pengambilan makanan.</td>
-        </tr>
+        <div class="empty-state">
+          Belum ada pengambilan makanan.
+        </div>
       `
       : claims
           .slice()
           .reverse()
           .map((claim) => {
-            const time = new Date(claim.claimedAt).toLocaleString("id-ID");
-
             return `
-              <tr>
-                <td>${time}</td>
-                <td>${claim.participantName}</td>
-                <td>${claim.participantId}</td>
-                <td>${claim.cartName}</td>
-                <td>${claim.menu}</td>
-              </tr>
+              <div class="history-row">
+                <div>
+                  <b>${claim.participantName}</b>
+                  <small>${claim.participantId} · ${claim.menu}</small>
+                </div>
+                <div>
+                  <span>${claim.cartName}</span>
+                  <small>${formatTime(claim.claimedAt)}</small>
+                </div>
+              </div>
             `;
           })
           .join("");
 
-  const qrCards = carts
-    .map((cart) => {
-      return `
-        <div class="qr-card">
-          <div class="qr-holder" id="qr-${cart.id}"></div>
-          <div class="qr-title">${cart.name}</div>
-          <div class="qr-subtitle">${cart.id} · ${cart.menu}</div>
-          <div class="code" style="margin-top: 10px;">SYUKURAN_CART:${cart.id}</div>
+  return `
+    <section class="card app-card">
+      <div class="screen-head">
+        <div>
+          <div class="event-pill">Riwayat</div>
+          <h1 class="app-title">Scan berhasil</h1>
+          <p class="app-desc">
+            Data peserta yang sudah mengambil makanan.
+          </p>
         </div>
-      `;
-    })
-    .join("");
+      </div>
 
-  app.innerHTML = `
-    <div class="app-shell">
-      ${renderTopbar()}
-
-      <section class="card hero-card no-print">
-        <div class="hero-content">
-          <div>
-            <div class="event-pill">Dashboard Admin</div>
-            <h1>
-              Kelola voucher, QR booth, dan rekap <span class="blue-text">pengambilan</span>.
-            </h1>
-            <p>
-              Dashboard ini dipakai panitia untuk mencetak QR booth,
-              melihat username/password voucher peserta, dan memantau rekap makanan.
-            </p>
-
-            <div class="stats">
-              <div class="stat">
-                <div class="stat-value">${participants.length}</div>
-                <div class="stat-label">Peserta</div>
-              </div>
-
-              <div class="stat">
-                <div class="stat-value">${carts.length}</div>
-                <div class="stat-label">Booth</div>
-              </div>
-
-              <div class="stat">
-                <div class="stat-value">${totalClaims}</div>
-                <div class="stat-label">Sudah Diambil</div>
-              </div>
-
-              <div class="stat">
-                <div class="stat-value">${totalPossibleClaims}</div>
-                <div class="stat-label">Maksimal Scan</div>
-              </div>
-            </div>
-
-            <div class="btn-row" style="margin-top: 20px;">
-              <button class="btn btn-primary" id="printBtn">Print Halaman</button>
-              <button class="btn btn-danger" id="resetClaimsBtn">Reset Pengambilan</button>
-            </div>
-          </div>
-
-          <div class="hero-logos">
-            ${logoStrip()}
-          </div>
-        </div>
-      </section>
-
-      <section class="card admin-section">
-        <h2>Rekap Per Booth</h2>
-        <p class="no-print">
-          Jumlah peserta yang sudah mengambil menu di setiap booth.
-        </p>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Booth</th>
-                <th>Menu</th>
-                <th>Sudah Ambil</th>
-                <th>Sisa</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${cartStatsHtml}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="card admin-section">
-        <h2>QR Booth</h2>
-        <p class="no-print">
-          Print QR ini, lalu tempel di masing-masing booth makanan.
-          Peserta login dahulu, lalu scan QR booth dari akun mereka.
-        </p>
-
-        <div class="qr-grid">
-          ${qrCards}
-        </div>
-      </section>
-
-      <section class="card admin-section">
-        <h2>Voucher Peserta</h2>
-        <p class="no-print">
-          Berikan username dan password ini kepada peserta. Bisa dicetak sebagai voucher.
-        </p>
-
-        <div class="voucher-card-grid">
-          ${voucherCards}
-        </div>
-      </section>
-
-      <section class="card admin-section no-print">
-        <h2>Data Voucher Peserta</h2>
-        <p>
-          Versi tabel untuk panitia.
-        </p>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID Peserta</th>
-                <th>Nama</th>
-                <th>Username</th>
-                <th>Password</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${voucherRows}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="card admin-section no-print">
-        <h2>Riwayat Pengambilan</h2>
-        <p>
-          Data scan yang sudah berhasil.
-        </p>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Waktu</th>
-                <th>Peserta</th>
-                <th>ID</th>
-                <th>Booth</th>
-                <th>Menu</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${claimRows}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
+      <div class="history-list">
+        ${claimRows}
+      </div>
+    </section>
   `;
+}
 
-  attachLogout();
+function attachAdminActions() {
+  const printBtn = document.getElementById("printBtn");
+  const resetClaimsBtn = document.getElementById("resetClaimsBtn");
 
-  document.getElementById("printBtn").addEventListener("click", () => {
-    window.print();
-  });
+  if (printBtn) {
+    printBtn.addEventListener("click", () => {
+      window.print();
+    });
+  }
 
-  document.getElementById("resetClaimsBtn").addEventListener("click", () => {
-    const confirmed = confirm(
-      "Yakin ingin menghapus semua data pengambilan makanan?"
-    );
+  if (resetClaimsBtn) {
+    resetClaimsBtn.addEventListener("click", () => {
+      const confirmed = confirm(
+        "Yakin ingin menghapus semua data pengambilan makanan?"
+      );
 
-    if (!confirmed) return;
+      if (!confirmed) return;
 
-    saveClaims([]);
-    renderAdmin();
-  });
-
-  drawQrCodes();
+      saveClaims([]);
+      renderAdmin();
+    });
+  }
 }
 
 function drawQrCodes() {
