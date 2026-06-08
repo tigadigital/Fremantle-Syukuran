@@ -1480,3 +1480,175 @@ tr:last-child td {
     font-size: 30px;
   }
 }
+
+/* =========================
+   REKAP / DASHBOARD STAT CARDS FIX
+   ========================= */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.stat {
+  position: relative;
+  overflow: hidden;
+  min-height: 116px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.12), transparent 36%),
+    linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.06);
+}
+
+.stat::after {
+  content: "";
+  position: absolute;
+  right: -24px;
+  bottom: -24px;
+  width: 76px;
+  height: 76px;
+  border-radius: 999px;
+  border: 16px solid rgba(14, 165, 233, 0.07);
+}
+
+.stat-value {
+  position: relative;
+  z-index: 1;
+  display: block;
+  margin-bottom: 9px;
+  font-size: clamp(32px, 5vw, 46px);
+  line-height: 0.9;
+  font-weight: 1000;
+  letter-spacing: -0.07em;
+  color: var(--blue-dark);
+}
+
+.stat-label {
+  position: relative;
+  z-index: 1;
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.stat:nth-child(2) {
+  background:
+    radial-gradient(circle at top right, rgba(245, 184, 46, 0.16), transparent 38%),
+    linear-gradient(180deg, #ffffff, #fffaf0);
+}
+
+.stat:nth-child(2) .stat-value {
+  color: var(--gold-dark);
+}
+
+.stat:nth-child(2)::after {
+  border-color: rgba(245, 184, 46, 0.12);
+}
+
+.stat:nth-child(3) {
+  background:
+    radial-gradient(circle at top right, rgba(3, 152, 85, 0.13), transparent 38%),
+    linear-gradient(180deg, #ffffff, #f3fff8);
+}
+
+.stat:nth-child(3) .stat-value {
+  color: var(--green);
+}
+
+.stat:nth-child(3)::after {
+  border-color: rgba(3, 152, 85, 0.1);
+}
+
+.stat:nth-child(4) {
+  background:
+    radial-gradient(circle at top right, rgba(15, 23, 42, 0.09), transparent 38%),
+    linear-gradient(180deg, #ffffff, #f9fafb);
+}
+
+.stat:nth-child(4) .stat-value {
+  color: #344054;
+}
+
+.stat:nth-child(4)::after {
+  border-color: rgba(15, 23, 42, 0.06);
+}
+
+/* Khusus dashboard admin biar tombol reset tidak terlalu mepet */
+.home-screen .btn-row {
+  margin-top: 22px !important;
+}
+
+.home-screen .btn-danger {
+  min-height: 48px;
+  padding-inline: 20px;
+  border-radius: 16px;
+}
+
+/* Per booth list lebih rapi */
+.admin-stat-row {
+  min-height: 74px;
+}
+
+.admin-stat-row b {
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.admin-stat-row small {
+  font-size: 12px;
+}
+
+.admin-numbers span {
+  font-size: 28px;
+  font-weight: 1000;
+  line-height: 0.9;
+}
+
+.admin-numbers small {
+  margin-top: 6px;
+}
+
+/* Mobile dashboard */
+@media (max-width: 760px) {
+  .stats,
+  .stats.app-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .stat {
+    min-height: 104px;
+    padding: 15px;
+    border-radius: 22px;
+  }
+
+  .stat-value {
+    font-size: 38px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  .home-screen .btn-danger {
+    width: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  .stat-value {
+    font-size: 34px;
+  }
+
+  .stat {
+    padding: 14px;
+  }
+}
