@@ -281,6 +281,7 @@ function attachLogout() {
 
   logoutBtn.addEventListener("click", () => {
     stopScannerIfNeeded();
+    closeResultPopup();
     state.currentUser = null;
     clearSession();
     render();
@@ -325,6 +326,8 @@ function attachTabs(type) {
   document.querySelectorAll(".app-tab").forEach((button) => {
     button.addEventListener("click", () => {
       const tab = button.dataset.tab;
+
+      closeResultPopup();
 
       if (type === "participant") {
         if (state.participantTab === "scan" && tab !== "scan") {
@@ -668,17 +671,175 @@ function normalizeCartCode(rawValue) {
   return value.toUpperCase();
 }
 
+/* =========================
+   POPUP HASIL SCAN
+   ========================= */
+
+function closeResultPopup() {
+  const existing = document.querySelector(".result-popup-backdrop");
+  if (existing) existing.remove();
+}
+
+function showResultPopup({
+  type,
+  title,
+  message,
+  menu,
+  booth,
+  primaryText,
+  secondaryText,
+  onPrimary,
+}) {
+  closeResultPopup();
+
+  const iconMap = {
+    success: "✓",
+    warning: "!",
+    danger: "×",
+  };
+
+  const labelMap = {
+    success: "Voucher Valid",
+    warning: "Sudah Digunakan",
+    danger: "Tidak Valid",
+  };
+
+  const buttonClassMap = {
+    success: "btn-primary",
+    warning: "btn-gold",
+    danger: "btn-danger",
+  };
+
+  const popup = document.createElement("div");
+  popup.className = `result-popup-backdrop ${type}`;
+
+  popup.innerHTML = `
+    <div class="result-popup">
+      <button class="result-close" type="button" aria-label="Tutup">×</button>
+
+      <div class="result-icon ${type}">
+        ${iconMap[type] || "!"}
+      </div>
+
+      <div class="result-label">
+        ${labelMap[type] || "Status Scan"}
+      </div>
+
+      <h2>${title}</h2>
+
+      <p>${message}</p>
+
+      ${
+        menu || booth
+          ? `
+            <div class="result-detail">
+              ${
+                menu
+                  ? `
+                    <div>
+                      <span>Menu</span>
+                      <strong>${menu}</strong>
+                    </div>
+                  `
+                  : ""
+              }
+
+              ${
+                booth
+                  ? `
+                    <div>
+                      <span>Booth</span>
+                      <strong>${booth}</strong>
+                    </div>
+                  `
+                  : ""
+              }
+            </div>
+          `
+          : ""
+      }
+
+      <div class="result-actions">
+        <button class="btn ${buttonClassMap[type] || "btn-primary"}" id="resultPrimaryBtn">
+          ${primaryText || "Oke"}
+        </button>
+
+        ${
+          secondaryText
+            ? `
+              <button class="btn btn-outline" id="resultSecondaryBtn">
+                ${secondaryText}
+              </button>
+            `
+            : ""
+        }
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+
+  if (navigator.vibrate) {
+    if (type === "success") navigator.vibrate([90]);
+    if (type === "warning") navigator.vibrate([80, 60, 80]);
+    if (type === "danger") navigator.vibrate([120, 80, 120]);
+  }
+
+  const closeButtons = [
+    popup.querySelector(".result-close"),
+    popup.querySelector("#resultSecondaryBtn"),
+  ];
+
+  closeButtons.forEach((button) => {
+    if (!button) return;
+    button.addEventListener("click", closeResultPopup);
+  });
+
+  popup.addEventListener("click", (event) => {
+    if (event.target === popup) closeResultPopup();
+  });
+
+  const primaryBtn = popup.querySelector("#resultPrimaryBtn");
+
+  if (primaryBtn) {
+    primaryBtn.addEventListener("click", () => {
+      closeResultPopup();
+
+      if (typeof onPrimary === "function") {
+        onPrimary();
+      }
+    });
+  }
+}
+
 function handleQrResult(decodedText) {
   const cartId = normalizeCartCode(decodedText);
   const carts = getCarts();
   const cart = carts.find((item) => item.id === cartId);
 
   if (!cart) {
+    stopScannerIfNeeded();
+
     setScanMessage(
       "danger",
       "QR tidak valid.",
       `Kode yang terbaca: <span class="code">${decodedText || "-"}</span>`
     );
+
+    showResultPopup({
+      type: "danger",
+      title: "QR tidak valid",
+      message: "QR yang discan tidak terdaftar sebagai booth makanan acara ini.",
+      menu: decodedText || "-",
+      booth: "Tidak ditemukan",
+      primaryText: "Scan Ulang",
+      secondaryText: "Tutup",
+      onPrimary: () => {
+        state.participantTab = "scan";
+        renderParticipant();
+      },
+    });
+
     return;
   }
 
@@ -697,6 +858,22 @@ function handleQrResult(decodedText) {
       "Kamu sudah mengambil menu ini.",
       `Menu <b>${cart.menu}</b> dari <b>${cart.name}</b> sudah pernah kamu ambil.`
     );
+
+    showResultPopup({
+      type: "warning",
+      title: "Sudah pernah diambil",
+      message:
+        "Voucher kamu untuk booth ini sudah digunakan sebelumnya. Silakan pilih booth lain.",
+      menu: cart.menu,
+      booth: cart.name,
+      primaryText: "Scan Booth Lain",
+      secondaryText: "Tutup",
+      onPrimary: () => {
+        state.participantTab = "scan";
+        renderParticipant();
+      },
+    });
+
     return;
   }
 
@@ -721,7 +898,25 @@ function handleQrResult(decodedText) {
     "Berhasil!",
     `Silakan ambil <b>${cart.menu}</b> di <b>${cart.name}</b>.`
   );
+
+  showResultPopup({
+    type: "success",
+    title: "Berhasil!",
+    message: "Voucher kamu valid. Silakan ambil menu di booth ini.",
+    menu: cart.menu,
+    booth: cart.name,
+    primaryText: "Lihat Status Menu",
+    secondaryText: "Tutup",
+    onPrimary: () => {
+      state.participantTab = "status";
+      renderParticipant();
+    },
+  });
 }
+
+/* =========================
+   ADMIN
+   ========================= */
 
 function renderAdmin() {
   const content =

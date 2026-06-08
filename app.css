@@ -1268,3 +1268,215 @@ tr:last-child td {
     border: 1px solid #d0d5dd;
   }
 }
+
+/* =========================
+   SCAN RESULT POPUP
+   ========================= */
+
+.result-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(16, 24, 40, 0.46);
+  backdrop-filter: blur(12px);
+  animation: popupFadeIn 0.18s ease-out;
+}
+
+.result-popup {
+  width: min(430px, 100%);
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  border-radius: 34px;
+  padding: 30px 22px 22px;
+  background: #ffffff;
+  border: 1px solid rgba(228, 231, 236, 0.95);
+  box-shadow:
+    0 28px 80px rgba(16, 24, 40, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.7);
+  animation: popupScaleIn 0.22s ease-out;
+}
+
+.result-popup::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.result-popup-backdrop.success .result-popup::before {
+  background:
+    radial-gradient(circle at 50% -5%, rgba(3, 152, 85, 0.18), transparent 42%),
+    radial-gradient(circle at 90% 10%, rgba(14, 165, 233, 0.12), transparent 30%);
+}
+
+.result-popup-backdrop.warning .result-popup::before {
+  background:
+    radial-gradient(circle at 50% -5%, rgba(245, 184, 46, 0.24), transparent 42%),
+    radial-gradient(circle at 90% 10%, rgba(245, 184, 46, 0.12), transparent 30%);
+}
+
+.result-popup-backdrop.danger .result-popup::before {
+  background:
+    radial-gradient(circle at 50% -5%, rgba(217, 45, 32, 0.18), transparent 42%),
+    radial-gradient(circle at 90% 10%, rgba(217, 45, 32, 0.1), transparent 30%);
+}
+
+.result-popup > * {
+  position: relative;
+}
+
+.result-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  color: #667085;
+  background: #f2f4f7;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.result-icon {
+  width: 92px;
+  height: 92px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: white;
+  font-size: 54px;
+  font-weight: 1000;
+  line-height: 1;
+}
+
+.result-icon.success {
+  background: linear-gradient(135deg, #12b76a, #039855);
+  box-shadow: 0 16px 34px rgba(3, 152, 85, 0.24);
+}
+
+.result-icon.warning {
+  color: #3d2900;
+  background: linear-gradient(135deg, #ffeeb3, #f5b82e);
+  box-shadow: 0 16px 34px rgba(245, 184, 46, 0.28);
+}
+
+.result-icon.danger {
+  background: linear-gradient(135deg, #f97066, #d92d20);
+  box-shadow: 0 16px 34px rgba(217, 45, 32, 0.24);
+}
+
+.result-label {
+  display: inline-flex;
+  margin-bottom: 12px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #f9fafb;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.result-popup h2 {
+  margin: 0 0 10px;
+  font-size: 34px;
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+  color: #101828;
+}
+
+.result-popup p {
+  margin: 0;
+  color: #667085;
+  line-height: 1.6;
+}
+
+.result-detail {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.result-detail div {
+  padding: 14px;
+  border: 1px solid #e4e7ec;
+  border-radius: 18px;
+  background: #f9fafb;
+}
+
+.result-detail span {
+  display: block;
+  margin-bottom: 4px;
+  color: #98a2b3;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.result-detail strong {
+  color: #101828;
+  font-size: 17px;
+}
+
+.result-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.result-actions .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+@keyframes popupFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes popupScaleIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 480px) {
+  .result-popup-backdrop {
+    padding: 14px;
+    align-items: end;
+  }
+
+  .result-popup {
+    border-radius: 30px;
+    padding: 28px 18px 18px;
+  }
+
+  .result-icon {
+    width: 84px;
+    height: 84px;
+    font-size: 48px;
+  }
+
+  .result-popup h2 {
+    font-size: 30px;
+  }
+}
