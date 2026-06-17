@@ -1,10 +1,7 @@
-console.info("Syukuran Voucher App v5.7 loaded - MP3 scan audio feedback");
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   onAuthStateChanged,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
@@ -33,9 +30,6 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getDatabase(firebaseApp, firebaseConfig.databaseURL);
 
-let secondaryApp = null;
-let secondaryAuth = null;
-
 const EMAIL_DOMAIN = "fremantle-syukuran.local";
 const ADMIN_EMAIL = `admin@${EMAIL_DOMAIN}`;
 const CONNECT_TIMEOUT_MS = 12000;
@@ -51,102 +45,8 @@ const EVENT = {
   },
 };
 
-const DEFAULT_CARTS = [
-  { id: "G01", name: "Booth 01", menu: "Bakso" },
-  { id: "G02", name: "Booth 02", menu: "Sate Ayam" },
-  { id: "G03", name: "Booth 03", menu: "Gultik" },
-  { id: "G04", name: "Booth 04", menu: "Crepes" },
-  { id: "G05", name: "Booth 05", menu: "Ice Cream" },
-  { id: "G06", name: "Booth 06", menu: "Es Teh" },
-  { id: "G07", name: "Booth 07", menu: "Kopi Jago" },
-];
-
 const REMOVED_CART_IDS = ["G08"];
 const REMOVED_CART_ID_SET = new Set(REMOVED_CART_IDS);
-
-const PARTICIPANTS = [
-  { name: "Sakti Parantean", username: "sakti" },
-  { name: "Victor Ariesza", username: "victor" },
-  { name: "Marisa Intan", username: "marisa" },
-  { name: "Dandy", username: "dandy" },
-  { name: "Arief Soeliscane Affandi", username: "arief" },
-  { name: "Moch Ariandi", username: "ariandi" },
-  { name: "Rino Azhari", username: "rino" },
-  { name: "Rosalia Kusumowati", username: "rosalia" },
-  { name: "Rivo Yudhistira", username: "rivo" },
-  { name: "Hilda Curnilla Sari", username: "hilda" },
-  { name: "Siti Marlinah", username: "siti" },
-  { name: "Haris Marjuki", username: "haris" },
-  { name: "Aditya Amarullah", username: "aditya" },
-  { name: "Indah Uli Sidabutar", username: "indah" },
-  { name: "Beben Hanoko", username: "beben" },
-  { name: "Halida Chairunnisa", username: "halida" },
-  { name: "Rehanita Wibisono", username: "rehanita" },
-  { name: "Raka Purwana", username: "raka" },
-  { name: "Felina Arni Dwi Kana", username: "felina" },
-  { name: "Saras Choirunnisa", username: "saras" },
-  { name: "Winda Fajriyatul Arifah", username: "winda" },
-  { name: "Mul", username: "mul" },
-  { name: "Keisha Ananditya", username: "keisha" },
-  { name: "Angie Ardhana Reswari", username: "angie" },
-  { name: "Muhammad Yusuf Alfajri", username: "yusuf" },
-  { name: "Morgano Arthur Harimu", username: "morgano" },
-  { name: "Raihanah Naja Atthaya", username: "raihanah" },
-  { name: "Intania Ayuning Sugandi", username: "intania" },
-  { name: "Agung", username: "agung" },
-  { name: "Pak Agus", username: "agus" },
-  { name: "Dewi", username: "dewi" },
-  { name: "Muhtasor", username: "muhtasor" },
-  { name: "Riska Nur Wulandani", username: "riska" },
-  { name: "Afif", username: "afif" },
-  { name: "Prisca", username: "prisca" },
-  { name: "Tiara Widianti Puteri", username: "tiara" },
-  { name: "Aulia Okta Ramadhian", username: "aulia" },
-  { name: "SYAFWAN HADY", username: "syafwan" },
-  { name: "YUDITH ARI PRASETYO", username: "yudith" },
-  { name: "RICKY FAJAR", username: "ricky" },
-  { name: "IPTHY AKSARA GATI", username: "ipthy" },
-  { name: "KURNIA DWI SAPUTRI", username: "kurnia" },
-  { name: "NURCAHYA HANDAYANI", username: "nurcahya" },
-  { name: "NOVI TRI WAHYUNI", username: "novi" },
-  { name: "RIVALDY O PASARIBU", username: "rivaldy" },
-  { name: "FATHIA AZZAHRA", username: "fathia" },
-  { name: "ANGGA ADITYA", username: "angga" },
-  { name: "DIMAS WIJANARKO", username: "dimas" },
-  { name: "YOSEFFINA DHE ANCHITA", username: "yoseffina" },
-  { name: "FIFI FIONITA", username: "fifi" },
-  { name: "IRAWAN FIKA WIBISONO", username: "irawan" },
-  { name: "SAJID BIMA NUR YASIN", username: "sajid" },
-  { name: "ISNAN ZAKARIA", username: "isnan" },
-  { name: "ENY NOER HALINNA", username: "eny" },
-  { name: "GUNTUR SUPRIYANTO", username: "guntur" },
-  { name: "M. REVAN HASIBUAN", username: "revan" },
-  { name: "AFIFAH TARA", username: "afifah" },
-  { name: "IVANKA DWI GUSTI ADINDA", username: "ivanka" },
-  { name: "Bambang", username: "bambang" },
-  { name: "ESA APRIA CHANDRA", username: "esa" },
-  { name: "RYAN RIZAL PRATAMA", username: "ryan" },
-  { name: "ANJAR DWI KUNCORO", username: "anjar" },
-  { name: "A JUANDA", username: "juanda" },
-  { name: "AHMAD HASANUDIN", username: "ahmad" },
-  { name: "ARDI ARHAM PRAMONO", username: "ardi" },
-  { name: "EPRILIYANTO", username: "epriliyanto" },
-];
-
-const PARTICIPANT_REPLACEMENTS = [
-  { participantCode: "P004", oldName: "Ricci Lestari", oldUsername: "ricci", newName: "Dandy", newUsername: "dandy" },
-  { participantCode: "P022", oldName: "Kezia Audi Sappetaw", oldUsername: "kezia", newName: "Mul", newUsername: "mul" },
-  { participantCode: "P029", oldName: "Rasim Suhendar", oldUsername: "rasim", newName: "Agung", newUsername: "agung" },
-  { participantCode: "P031", oldName: "Fauzi Kamali", oldUsername: "fauzi", newName: "Dewi", newUsername: "dewi" },
-  { participantCode: "P032", oldName: "Ari Kurniawan Hideyuki", oldUsername: "ari", newName: "Muhtasor", newUsername: "muhtasor" },
-  { participantCode: "P034", oldName: "Moch. Rizky Setiawan", oldUsername: "rizky", newName: "Afif", newUsername: "afif" },
-  { participantCode: "P035", oldName: "Chirstian Linggar Pratama", oldUsername: "chirstian", newName: "Prisca", newUsername: "prisca" },
-  { participantCode: "P059", oldName: "ERWIN JEFRY HOTTY", oldUsername: "erwin", newName: "Bambang", newUsername: "bambang" },
-];
-
-const OLD_RENAMED_USERNAMES = new Set(
-  PARTICIPANT_REPLACEMENTS.map((item) => item.oldUsername.toLowerCase())
-);
 
 const AUDIO_FILES = {
   success: "assets/audio/success.mp3",
@@ -154,7 +54,6 @@ const AUDIO_FILES = {
   danger: "assets/audio/error.mp3",
   unlock: "assets/audio/unlock.mp3",
 };
-
 
 const app = document.getElementById("app");
 
@@ -252,7 +151,6 @@ async function unlockScanAudio() {
     audio.volume = 1;
     mp3Unlocked = true;
   } catch (error) {
-    console.warn("MP3 audio unlock failed:", error);
   }
 
   try {
@@ -262,7 +160,6 @@ async function unlockScanAudio() {
       await context.resume();
     }
   } catch (error) {
-    console.warn("WebAudio unlock failed:", error);
   }
 
   state.audioUnlocked = mp3Unlocked || !!state.audioContext;
@@ -315,7 +212,6 @@ function playScanTone(type) {
 
     return false;
   } catch (error) {
-    console.warn("Tone fallback failed:", error);
     return false;
   }
 }
@@ -337,11 +233,9 @@ async function playScanAudio(type) {
     state.audioUnlocked = true;
     return true;
   } catch (error) {
-    console.warn("MP3 audio feedback failed, trying tone fallback:", error);
     return playScanTone(normalizedType);
   }
 }
-
 
 function withTimeout(promise, message, timeoutMs = CONNECT_TIMEOUT_MS) {
   let timeoutId;
@@ -431,10 +325,6 @@ function usernameToEmail(username) {
   return `${value}@${EMAIL_DOMAIN}`;
 }
 
-function generatePassword(index) {
-  return `FM-${3000 + index * 17}`;
-}
-
 function cartsArray() {
   return Object.values(state.carts || {})
     .filter((cart) => cart?.id && !REMOVED_CART_ID_SET.has(String(cart.id).trim().toUpperCase()))
@@ -479,15 +369,6 @@ function participantClaimsArray(uid) {
   return Object.values((state.claims || {})[uid] || {})
     .filter((claim) => validCartIds.has(String(claim?.cartId || "").trim().toUpperCase()))
     .sort((a, b) => Number(b.claimedAt || 0) - Number(a.claimedAt || 0));
-}
-
-function getSecondaryAuth() {
-  if (!secondaryApp) {
-    secondaryApp = initializeApp(firebaseConfig, "secondary");
-    secondaryAuth = getAuth(secondaryApp);
-  }
-
-  return secondaryAuth;
 }
 
 function stopScannerIfNeeded() {
@@ -649,7 +530,7 @@ function subscribeRealtimeData(profile) {
         state.carts = snapshot.val() || {};
         if (state.currentUser) render();
       },
-      (error) => console.error("Realtime carts error:", error)
+      () => {}
     )
   );
 
@@ -661,7 +542,7 @@ function subscribeRealtimeData(profile) {
           state.claims = snapshot.val() || {};
           if (state.currentUser?.role === "admin") render();
         },
-        (error) => console.error("Realtime claims error:", error)
+        () => {}
       )
     );
 
@@ -672,7 +553,7 @@ function subscribeRealtimeData(profile) {
           state.users = snapshot.val() || {};
           if (state.currentUser?.role === "admin") render();
         },
-        (error) => console.error("Realtime users error:", error)
+        () => {}
       )
     );
 
@@ -689,7 +570,7 @@ function subscribeRealtimeData(profile) {
 
         if (state.currentUser?.role !== "admin") render();
       },
-      (error) => console.error("Realtime own claims error:", error)
+      () => {}
     )
   );
 }
@@ -762,7 +643,6 @@ function renderLogin() {
     try {
       await signInWithEmailAndPassword(auth, usernameToEmail(username), password);
     } catch (error) {
-      console.error("Login error:", error);
 
       messageEl.innerHTML = `
         <div class="notice danger">
@@ -1226,7 +1106,6 @@ async function startScanner() {
       "Arahkan kamera ke QR booth makanan."
     );
   } catch (error) {
-    console.error("Camera error:", error);
     reader.innerHTML = `<div class="scanner-placeholder">Kamera belum aktif.</div>`;
     setScanMessage(
       "danger",
@@ -1516,7 +1395,6 @@ async function handleQrResult(decodedText) {
       },
     });
   } catch (error) {
-    console.error("Claim error:", error);
     playScanAudio("danger");
     setScanMessage(
       "danger",
@@ -1643,10 +1521,7 @@ function renderAdminDashboard() {
         </div>
       </div>
 
-      <div class="btn-row" style="margin-top: 18px;">
-        <button class="btn btn-primary" id="setupDbBtn">Setup Data</button>
-        <button class="btn btn-outline" id="fixBoothsBtn">Fix Booth 7</button>
-        <button class="btn btn-gold" id="fixParticipantsBtn">Fix Peserta 66</button>
+      <div class="btn-row admin-actions no-print" style="margin-top: 18px;">
         <button class="btn btn-danger" id="resetClaimsBtn">Reset Pengambilan</button>
       </div>
 
@@ -1670,7 +1545,7 @@ function renderAdminDashboard() {
       <div class="mini-list">
         ${
           cartStatsHtml ||
-          `<div class="empty-state">Data booth belum tersedia. Klik <b>Setup Data</b>.</div>`
+          `<div class="empty-state">Data booth belum tersedia.</div>`
         }
       </div>
     </section>
@@ -2006,12 +1881,6 @@ function attachAdminActions() {
     window.print();
   });
 
-  document.getElementById("setupDbBtn")?.addEventListener("click", setupDatabase);
-
-  document.getElementById("fixBoothsBtn")?.addEventListener("click", fixBoothData);
-
-  document.getElementById("fixParticipantsBtn")?.addEventListener("click", fixParticipantData);
-
   document.getElementById("resetClaimsBtn")?.addEventListener("click", async () => {
     const confirmed = confirm(
       "Yakin ingin menghapus semua data pengambilan makanan? Username dan password peserta tidak akan dihapus."
@@ -2053,421 +1922,6 @@ function attachAdminActions() {
   });
 
   document.getElementById("exportMissingBtn")?.addEventListener("click", exportMissingCsv);
-}
-
-
-function canonicalCartsObject() {
-  return DEFAULT_CARTS.reduce((accumulator, cart) => {
-    accumulator[cart.id] = { ...cart };
-    return accumulator;
-  }, {});
-}
-
-async function cleanupRemovedCartClaims() {
-  const claimsSnapshot = await readDb("claims", "data pengambilan untuk cleanup booth");
-  const claims = safeObject(claimsSnapshot.val());
-  let removedClaims = 0;
-
-  for (const [uid, userClaims] of Object.entries(claims)) {
-    for (const cartId of Object.keys(safeObject(userClaims))) {
-      const normalizedCartId = String(cartId || "").trim().toUpperCase();
-
-      if (!REMOVED_CART_ID_SET.has(normalizedCartId)) continue;
-
-      await deleteDb(`claims/${uid}/${cartId}`, `claim booth dihapus ${cartId}`);
-      removedClaims += 1;
-    }
-  }
-
-  return removedClaims;
-}
-
-async function syncBoothData(progressElement = null) {
-  if (progressElement) {
-    progressElement.innerHTML = `
-      <div class="notice warning">
-        Menyinkronkan data booth menjadi ${escapeHtml(DEFAULT_CARTS.length)} booth aktif...
-      </div>
-    `;
-  }
-
-  await writeDb("carts", canonicalCartsObject(), "data booth aktif");
-  const removedClaims = await cleanupRemovedCartClaims();
-
-  await writeDb("meta/boothSync", {
-    activeBooths: DEFAULT_CARTS.length,
-    removedCartIds: REMOVED_CART_IDS,
-    removedClaims,
-    syncedAt: Date.now(),
-    syncedBy: state.authUser.uid,
-  }, "status sinkron booth");
-
-  const cartsSnapshot = await readDb("carts", "validasi data booth");
-  state.carts = cartsSnapshot.val() || {};
-
-  return {
-    activeBooths: DEFAULT_CARTS.length,
-    removedCartIds: REMOVED_CART_IDS,
-    removedClaims,
-  };
-}
-
-async function fixBoothData() {
-  const confirmed = confirm(
-    "Fix booth akan mengubah data menjadi 7 booth aktif, mengganti Es Podeng menjadi Ice Cream, menghapus G08/Telur Gulung dari database, dan menghapus claim lama untuk G08. Lanjutkan?"
-  );
-
-  if (!confirmed) return;
-
-  const fixBtn = document.getElementById("fixBoothsBtn");
-  const setupMessage = document.getElementById("setupMessage");
-
-  if (fixBtn) {
-    fixBtn.disabled = true;
-    fixBtn.textContent = "Memproses...";
-  }
-
-  try {
-    const result = await syncBoothData(setupMessage);
-    const removedIds = result.removedCartIds.length ? result.removedCartIds.join(", ") : "-";
-    state.setupMessage = `Fix booth selesai. Booth aktif sekarang ${result.activeBooths}. Booth dihapus: ${removedIds}. Claim G08 yang dibersihkan: ${result.removedClaims}.`;
-    renderAdmin();
-  } catch (error) {
-    console.error("Fix booth error:", error);
-    state.setupMessage = `Fix booth gagal: ${friendlyFirebaseError(error)}`;
-    renderAdmin();
-  }
-}
-
-function canonicalParticipantsArray() {
-  return PARTICIPANTS.map((participant, index) => {
-    const participantNumber = index + 1;
-    const participantCode = `P${String(participantNumber).padStart(3, "0")}`;
-    const password = generatePassword(participantNumber);
-
-    return {
-      ...participant,
-      participantCode,
-      password,
-      email: usernameToEmail(participant.username),
-    };
-  });
-}
-
-function normalizeUsername(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function findUserEntryByUsername(users, username) {
-  const target = normalizeUsername(username);
-
-  return Object.entries(safeObject(users)).find(([, profile]) => {
-    return normalizeUsername(profile?.username) === target;
-  });
-}
-function findUserEntryByEmail(users, email) {
-  const target = normalizeUsername(email);
-
-  return Object.entries(safeObject(users)).find(([, profile]) => {
-    return normalizeUsername(profile?.email) === target;
-  });
-}
-
-function findUserEntryByParticipantCode(users, participantCode) {
-  const target = String(participantCode || "").trim().toUpperCase();
-
-  return Object.entries(safeObject(users)).find(([, profile]) => {
-    return String(profile?.participantCode || "").trim().toUpperCase() === target;
-  });
-}
-
-function findExistingUserEntryForCanonicalParticipant(users, participant) {
-  const replacement = PARTICIPANT_REPLACEMENTS.find((item) => item.participantCode === participant.participantCode);
-
-  const candidates = [
-    findUserEntryByUsername(users, participant.username),
-    findUserEntryByEmail(users, participant.email),
-    findUserEntryByParticipantCode(users, participant.participantCode),
-    replacement ? findUserEntryByUsername(users, replacement.oldUsername) : null,
-    replacement ? findUserEntryByEmail(users, usernameToEmail(replacement.oldUsername)) : null,
-  ];
-
-  return candidates.find(Boolean) || null;
-}
-
-function buildCanonicalMaps() {
-  const canonical = canonicalParticipantsArray();
-
-  return {
-    canonical,
-    byCode: new Map(canonical.map((participant) => [participant.participantCode, participant])),
-    byUsername: new Map(canonical.map((participant) => [normalizeUsername(participant.username), participant])),
-  };
-}
-
-function getCanonicalTargetForProfile(profile, maps) {
-  const participantCode = String(profile?.participantCode || "").trim();
-  const username = normalizeUsername(profile?.username);
-
-  if (participantCode && maps.byCode.has(participantCode)) {
-    return maps.byCode.get(participantCode);
-  }
-
-  if (username && maps.byUsername.has(username)) {
-    return maps.byUsername.get(username);
-  }
-
-  const replacement = PARTICIPANT_REPLACEMENTS.find((item) => {
-    return normalizeUsername(item.oldUsername) === username;
-  });
-
-  if (replacement && maps.byCode.has(replacement.participantCode)) {
-    return maps.byCode.get(replacement.participantCode);
-  }
-
-  return null;
-}
-
-async function migrateClaimsToCanonicalUser(fromUid, toUid, canonicalProfile) {
-  if (!fromUid || !toUid || fromUid === toUid) return 0;
-
-  const oldClaimsSnapshot = await readDb(`claims/${fromUid}`, `claim lama ${canonicalProfile.username}`);
-  const oldClaims = safeObject(oldClaimsSnapshot.val());
-
-  if (Object.keys(oldClaims).length === 0) return 0;
-
-  const targetClaimsSnapshot = await readDb(`claims/${toUid}`, `claim baru ${canonicalProfile.username}`);
-  const targetClaims = safeObject(targetClaimsSnapshot.val());
-  let moved = 0;
-
-  for (const [cartId, claim] of Object.entries(oldClaims)) {
-    if (targetClaims[cartId]) continue;
-
-    await writeDb(`claims/${toUid}/${cartId}`, {
-      ...safeObject(claim),
-      participantId: toUid,
-      uid: toUid,
-      participantCode: canonicalProfile.participantCode,
-      participantName: canonicalProfile.name,
-      username: canonicalProfile.username,
-    }, `migrasi claim ${canonicalProfile.username} ${cartId}`);
-
-    moved += 1;
-  }
-
-  await deleteDb(`claims/${fromUid}`, `claim lama ${canonicalProfile.username}`);
-  return moved;
-}
-
-async function cleanupLegacyParticipantProfiles(canonicalUidByCode) {
-  const maps = buildCanonicalMaps();
-  const usersSnapshot = await readDb("users", "data peserta untuk cleanup");
-  const users = safeObject(usersSnapshot.val());
-  let removedProfiles = 0;
-  let migratedClaims = 0;
-
-  for (const [uid, profile] of Object.entries(users)) {
-    const safeProfile = safeObject(profile);
-    if (safeProfile.role !== "participant") continue;
-
-    const username = normalizeUsername(safeProfile.username);
-    const target = getCanonicalTargetForProfile(safeProfile, maps);
-    const targetUid = target ? canonicalUidByCode.get(target.participantCode) : null;
-    const isLegacyRenamedUsername = OLD_RENAMED_USERNAMES.has(username);
-
-    if (target && targetUid && uid !== targetUid) {
-      migratedClaims += await migrateClaimsToCanonicalUser(uid, targetUid, target);
-      await deleteDb(`users/${uid}`, `profil peserta duplikat ${safeProfile.username || uid}`);
-      removedProfiles += 1;
-      continue;
-    }
-
-    if (!target && isLegacyRenamedUsername) {
-      await deleteDb(`users/${uid}`, `profil peserta lama ${safeProfile.username || uid}`);
-      removedProfiles += 1;
-    }
-  }
-
-  return { removedProfiles, migratedClaims };
-}
-
-async function syncCanonicalParticipants(progressElement = null) {
-  const maps = buildCanonicalMaps();
-  const canonicalUidByCode = new Map();
-  const skippedAuthUsers = [];
-  const usersSnapshot = await readDb("users", "data peserta sebelum sinkron");
-  const users = safeObject(usersSnapshot.val());
-
-  for (let i = 0; i < maps.canonical.length; i++) {
-    const participant = maps.canonical[i];
-
-    if (progressElement) {
-      progressElement.innerHTML = `
-        <div class="notice warning">
-          Sinkron peserta ${escapeHtml(i + 1)} dari ${escapeHtml(maps.canonical.length)}: ${escapeHtml(participant.name)}
-        </div>
-      `;
-    }
-
-    const existingEntry = findExistingUserEntryForCanonicalParticipant(users, participant);
-    let uid = existingEntry?.[0] || "";
-    let existingProfile = safeObject(existingEntry?.[1]);
-
-    if (!uid) {
-      const createdUid = await createAuthUserIfMissing(participant.email, participant.password);
-
-      if (!createdUid) {
-        skippedAuthUsers.push(`${participant.participantCode} ${participant.username}`);
-        continue;
-      }
-
-      uid = createdUid;
-      existingProfile = {};
-    }
-
-    canonicalUidByCode.set(participant.participantCode, uid);
-
-    const updatedProfile = {
-      ...existingProfile,
-      uid,
-      participantCode: participant.participantCode,
-      name: participant.name,
-      username: participant.username,
-      email: participant.email,
-      password: participant.password,
-      role: "participant",
-      createdAt: existingProfile.createdAt || Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    await writeDb(`users/${uid}`, updatedProfile, `profil peserta ${participant.username}`);
-    users[uid] = updatedProfile;
-  }
-
-  const cleanupResult = await cleanupLegacyParticipantProfiles(canonicalUidByCode);
-
-  await writeDb("meta/participantSync", {
-    expectedParticipants: maps.canonical.length,
-    removedDuplicateProfiles: cleanupResult.removedProfiles,
-    migratedClaims: cleanupResult.migratedClaims,
-    skippedAuthUsers,
-    syncedAt: Date.now(),
-    syncedBy: state.authUser.uid,
-  }, "status sinkron peserta");
-
-  const finalUsersSnapshot = await readDb("users", "validasi jumlah peserta");
-  const finalParticipants = Object.values(safeObject(finalUsersSnapshot.val())).filter((user) => user?.role === "participant");
-
-  state.users = finalUsersSnapshot.val() || {};
-
-  return {
-    expectedParticipants: maps.canonical.length,
-    finalParticipants: finalParticipants.length,
-    removedProfiles: cleanupResult.removedProfiles,
-    migratedClaims: cleanupResult.migratedClaims,
-    skippedAuthUsers,
-  };
-}
-
-async function fixParticipantData() {
-  const confirmed = confirm(
-    "Fix peserta akan menyinkronkan daftar menjadi 66 peserta, mengganti 8 nama/username sesuai update, mempertahankan password berdasarkan nomor peserta lama, dan menghapus profil duplikat di Realtime Database. Lanjutkan?"
-  );
-
-  if (!confirmed) return;
-
-  const fixBtn = document.getElementById("fixParticipantsBtn");
-  const setupMessage = document.getElementById("setupMessage");
-
-  if (fixBtn) {
-    fixBtn.disabled = true;
-    fixBtn.textContent = "Memproses...";
-  }
-
-  try {
-    const result = await syncCanonicalParticipants(setupMessage);
-    const skippedText = result.skippedAuthUsers.length
-      ? ` Ada ${result.skippedAuthUsers.length} akun Auth yang sudah ada tetapi profil /users tidak ditemukan: ${result.skippedAuthUsers.join(", ")}. Akun ini perlu dicek manual di Firebase Authentication.`
-      : "";
-    state.setupMessage = `Fix peserta selesai. Jumlah peserta sekarang ${result.finalParticipants}/${result.expectedParticipants}. Profil duplikat dihapus: ${result.removedProfiles}. Claim dimigrasi: ${result.migratedClaims}.${skippedText}`;
-    renderAdmin();
-  } catch (error) {
-    console.error("Fix participant error:", error);
-    state.setupMessage = `Fix peserta gagal: ${friendlyFirebaseError(error)}`;
-    renderAdmin();
-  }
-}
-
-async function setupDatabase() {
-  const confirmed = confirm(
-    "Setup data akan membuat/memperbarui akun peserta, booth, dan voucher sesuai data yang sudah ada di app.js. Lanjutkan?"
-  );
-
-  if (!confirmed) return;
-
-  const setupBtn = document.getElementById("setupDbBtn");
-  const setupMessage = document.getElementById("setupMessage");
-
-  setupBtn.disabled = true;
-  setupBtn.textContent = "Memproses...";
-
-  try {
-    const boothSyncResult = await syncBoothData(setupMessage);
-
-    const currentAdmin = {
-      uid: state.authUser.uid,
-      name: "Admin Panitia",
-      username: "admin",
-      email: ADMIN_EMAIL,
-      role: "admin",
-      participantCode: "ADMIN",
-      createdAt: Date.now(),
-    };
-
-    await writeDb(`users/${state.authUser.uid}`, currentAdmin, "profil admin");
-
-    const syncResult = await syncCanonicalParticipants(setupMessage);
-
-    await writeDb("meta/setup", {
-      completed: true,
-      completedAt: Date.now(),
-      completedBy: state.authUser.uid,
-    }, "status setup");
-
-    const skippedText = syncResult.skippedAuthUsers.length
-      ? ` Ada ${syncResult.skippedAuthUsers.length} akun Auth yang sudah ada tetapi profil /users tidak ditemukan: ${syncResult.skippedAuthUsers.join(", ")}. Akun ini perlu dicek manual di Firebase Authentication.`
-      : "";
-    state.setupMessage = `Setup data selesai. Booth aktif ${boothSyncResult.activeBooths}. Claim G08 dibersihkan: ${boothSyncResult.removedClaims}. Peserta aktif ${syncResult.finalParticipants}/${syncResult.expectedParticipants}. Profil duplikat dihapus: ${syncResult.removedProfiles}. Claim peserta dimigrasi: ${syncResult.migratedClaims}.${skippedText}`;
-    renderAdmin();
-  } catch (error) {
-    console.error("Setup error:", error);
-    state.setupMessage = `Setup gagal: ${friendlyFirebaseError(error)}`;
-    renderAdmin();
-  }
-}
-
-async function createAuthUserIfMissing(email, password) {
-  const secondary = getSecondaryAuth();
-
-  try {
-    const credential = await createUserWithEmailAndPassword(
-      secondary,
-      email,
-      password
-    );
-
-    const uid = credential.user.uid;
-    await signOut(secondary).catch(() => {});
-    return uid;
-  } catch (error) {
-    await signOut(secondary).catch(() => {});
-
-    if (error.code === "auth/email-already-in-use") {
-      return null;
-    }
-
-    throw error;
-  }
 }
 
 function drawQrCodes() {
@@ -2532,7 +1986,6 @@ function exportHistoryCsv() {
   link.remove();
   URL.revokeObjectURL(url);
 }
-
 
 function exportMissingCsv() {
   const groups = getMissingParticipantsByBooth();
@@ -2606,7 +2059,6 @@ onAuthStateChanged(auth, async (user) => {
     subscribeRealtimeData(profile);
     render();
   } catch (error) {
-    console.error("Auth init error:", error);
     state.loading = false;
     state.authUser = null;
     state.currentUser = null;

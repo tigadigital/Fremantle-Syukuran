@@ -1936,3 +1936,9 @@ tr:last-child td {
     flex-direction: column;
   }
 }
+
+
+/* Final admin action spacing */
+.admin-actions {
+  justify-content: flex-start;
+}
