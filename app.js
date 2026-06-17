@@ -1,4 +1,4 @@
-console.info("Syukuran Voucher App v5.6 loaded - participant scan audio feedback");
+console.info("Syukuran Voucher App v5.7 loaded - MP3 scan audio feedback");
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
@@ -148,6 +148,13 @@ const OLD_RENAMED_USERNAMES = new Set(
   PARTICIPANT_REPLACEMENTS.map((item) => item.oldUsername.toLowerCase())
 );
 
+const AUDIO_FILES = {
+  success: "assets/audio/success.mp3",
+  warning: "assets/audio/used.mp3",
+  danger: "assets/audio/error.mp3",
+  unlock: "assets/audio/unlock.mp3",
+};
+
 
 const app = document.getElementById("app");
 
@@ -160,6 +167,8 @@ const state = {
   scanner: null,
   scanning: false,
   audioContext: null,
+  audioUnlocked: false,
+  audioPlayers: {},
   participantTab: "home",
   adminTab: "dashboard",
   loading: true,
@@ -200,21 +209,64 @@ function getAudioContext() {
   return state.audioContext;
 }
 
+function getAudioPlayer(type) {
+  const src = AUDIO_FILES[type] || AUDIO_FILES.danger;
+
+  if (!state.audioPlayers[type]) {
+    const audio = new Audio(src);
+    audio.preload = "auto";
+    audio.volume = 1;
+    audio.setAttribute("playsinline", "true");
+    state.audioPlayers[type] = audio;
+  }
+
+  return state.audioPlayers[type];
+}
+
+function preloadScanAudio() {
+  Object.keys(AUDIO_FILES).forEach((type) => {
+    try {
+      getAudioPlayer(type).load();
+    } catch {}
+  });
+}
+
 async function unlockScanAudio() {
+  preloadScanAudio();
+
+  let mp3Unlocked = false;
+
+  try {
+    const audio = getAudioPlayer("unlock");
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = 0.001;
+
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.then === "function") {
+      await playPromise;
+    }
+
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = 1;
+    mp3Unlocked = true;
+  } catch (error) {
+    console.warn("MP3 audio unlock failed:", error);
+  }
+
   try {
     const context = getAudioContext();
 
-    if (!context) return false;
-
-    if (context.state === "suspended") {
+    if (context && context.state === "suspended") {
       await context.resume();
     }
-
-    return true;
   } catch (error) {
-    console.warn("Audio unlock failed:", error);
-    return false;
+    console.warn("WebAudio unlock failed:", error);
   }
+
+  state.audioUnlocked = mp3Unlocked || !!state.audioContext;
+  return state.audioUnlocked;
 }
 
 function playTone(context, frequency, offset, duration, gainValue = 0.08, type = "sine") {
@@ -236,31 +288,57 @@ function playTone(context, frequency, offset, duration, gainValue = 0.08, type =
   oscillator.stop(end + 0.025);
 }
 
-function playScanAudio(type) {
+function playScanTone(type) {
   try {
     const context = getAudioContext();
 
-    if (!context || context.state === "suspended") return;
+    if (!context || context.state === "suspended") return false;
 
     if (type === "success") {
       playTone(context, 659.25, 0, 0.11, 0.075);
       playTone(context, 880, 0.105, 0.12, 0.075);
       playTone(context, 1174.66, 0.22, 0.16, 0.07);
-      return;
+      return true;
     }
 
     if (type === "warning") {
       playTone(context, 392, 0, 0.13, 0.07, "triangle");
       playTone(context, 261.63, 0.18, 0.2, 0.075, "triangle");
-      return;
+      return true;
     }
 
     if (type === "danger") {
       playTone(context, 196, 0, 0.18, 0.075, "sawtooth");
       playTone(context, 146.83, 0.2, 0.2, 0.065, "sawtooth");
+      return true;
     }
+
+    return false;
   } catch (error) {
-    console.warn("Audio feedback failed:", error);
+    console.warn("Tone fallback failed:", error);
+    return false;
+  }
+}
+
+async function playScanAudio(type) {
+  const normalizedType = ["success", "warning", "danger"].includes(type) ? type : "danger";
+
+  try {
+    const audio = getAudioPlayer(normalizedType);
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = 1;
+
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.then === "function") {
+      await playPromise;
+    }
+
+    state.audioUnlocked = true;
+    return true;
+  } catch (error) {
+    console.warn("MP3 audio feedback failed, trying tone fallback:", error);
+    return playScanTone(normalizedType);
   }
 }
 
@@ -932,7 +1010,7 @@ function renderParticipantScan() {
           <h1 class="app-title">Scan QR booth makanan.</h1>
           <p class="app-desc">
             Arahkan kamera ke QR yang tersedia di booth. Kalau kamera bermasalah, pakai input manual.
-            Aktifkan volume device untuk mendengar notifikasi scan berhasil atau sudah digunakan.
+            Tekan Aktifkan Audio sekali jika suara belum terdengar di HP.
           </p>
         </div>
       </div>
@@ -948,6 +1026,14 @@ function renderParticipantScan() {
       <div class="btn-row scan-actions">
         <button class="btn btn-primary" id="startScanBtn">Buka Kamera</button>
         <button class="btn btn-outline" id="stopScanBtn">Tutup Kamera</button>
+      </div>
+
+      <div class="audio-card no-print">
+        <div>
+          <b>Audio scan</b>
+          <small>Tekan sekali jika suara belum keluar di HP.</small>
+        </div>
+        <button class="btn btn-outline" id="enableAudioBtn" type="button">Aktifkan Audio</button>
       </div>
 
       <details class="manual-details">
@@ -1027,6 +1113,29 @@ function attachParticipantActions() {
   document.getElementById("goStatusBtn")?.addEventListener("click", () => {
     state.participantTab = "status";
     renderParticipant();
+  });
+
+  document.getElementById("enableAudioBtn")?.addEventListener("click", async () => {
+    const button = document.getElementById("enableAudioBtn");
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Mengaktifkan...";
+    }
+
+    const unlocked = await unlockScanAudio();
+
+    if (unlocked) {
+      await playScanAudio("success");
+      setScanMessage("success", "Audio aktif.", "Suara scan sudah siap dipakai.");
+    } else {
+      setScanMessage("warning", "Audio belum aktif.", "Browser masih memblokir audio. Pastikan volume media aktif, silent mode mati, lalu tekan tombol ini lagi.");
+    }
+
+    if (button) {
+      button.disabled = false;
+      button.textContent = unlocked ? "Audio Aktif" : "Coba Lagi";
+    }
   });
 
   document.getElementById("startScanBtn")?.addEventListener("click", async () => {

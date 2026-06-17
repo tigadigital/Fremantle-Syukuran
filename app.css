@@ -1255,6 +1255,56 @@ tr:last-child td {
   }
 }
 
+
+/* =========================
+   MP3 AUDIO CONTROLS
+   ========================= */
+
+.audio-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(245, 184, 46, 0.08)),
+    #ffffff;
+  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.04);
+}
+
+.audio-card b {
+  display: block;
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+}
+
+.audio-card small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.audio-card .btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .audio-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .audio-card .btn {
+    width: 100%;
+  }
+}
+
 /* =========================
    PRINT
    ========================= */
